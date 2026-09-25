@@ -10,7 +10,7 @@
  */
 
 import { Context } from '@deepseek-ai/cordis'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPromptRuntime from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as toolWeb from '@deepseek-ai/dsh-tool-web'
@@ -25,11 +25,11 @@ if (envKey === undefined || envKey.length === 0) {
 }
 const apiKey: string = envKey
 
-/** The composition this bundle's cordis.patch.yml produces, built by hand. */
+/** Explicit live composition; no bundle is installed by this package. */
 async function harness(): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(ToolRuntime, {})
-  await ctx.plugin(SystemPromptRuntime, { persona: '' })
+  await ctx.plugin(SystemPromptRuntime)
   await ctx.plugin(WebRuntime, { searchProvider: 'firecrawl', fetchProvider: 'firecrawl' })
   await ctx.plugin(searchPlugin, { apiKey })
   await ctx.plugin(fetchPlugin, { apiKey })
@@ -40,7 +40,7 @@ async function harness(): Promise<Context> {
 let call = 0
 function invoke(ctx: Context, name: string, args: unknown) {
   return ctx.tools.execute({
-    callId: CallId(`live-${call += 1}`),
+    callId: ToolCallId(`live-${call += 1}`),
     name,
     arguments: args,
     signal: new AbortController().signal,

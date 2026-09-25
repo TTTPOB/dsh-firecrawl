@@ -31,7 +31,6 @@ for (const [subpath, entry] of Object.entries(manifest.exports ?? {})) {
   }
 }
 
-if (!shipped.has('cordis.patch.yml')) failures.push('cordis.patch.yml is not in the tarball')
 if (!shipped.has('LICENSE')) failures.push('LICENSE is not in the tarball')
 
 // Sources and tests are build inputs, not runtime artifacts.
