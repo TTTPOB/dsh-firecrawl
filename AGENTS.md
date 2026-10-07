@@ -5,7 +5,7 @@
 ## 边界
 
 - **不贡献自动 `dsh.bundle` 配置。** 本包是独立的 profile dependency。
-- 调用方拥有 provider 选择、凭据与部署配置。`auto-install-peers=false` 下由官方 profile resolver 从 Host 提供共享的 Cordis、launch-environment 与 Web peers。
+- 调用方拥有 provider 选择、凭据与部署配置。
 - fetch provider 必须可回收：注册 `ctx.web` 的 dispose 型 provider，发送 `POST /v2/scrape`，返回带页面 HTTP 状态的解码 HTML/文本，并按 `maxBodyChars`（默认 100000）截断正文；网络/API 错误与取消转为类型化 Web 错误。
 - 凭据来自 `apiKey` 配置或启动环境的 `FIRECRAWL_API_KEY`。不要把凭据写入日志、错误信息或模型可见输出。
 - **不要宣称第三方访问或数据处理保证**：Firecrawl 在其自身基础设施上抓取模型选定的 URL。
