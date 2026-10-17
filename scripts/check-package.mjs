@@ -27,11 +27,26 @@ const failures = []
 for (const [subpath, entry] of Object.entries(manifest.exports ?? {})) {
   for (const target of typeof entry === 'string' ? [entry] : Object.values(entry)) {
     const path = target.replace(/^\.\//, '')
-    if (!shipped.has(path)) failures.push(`export "${subpath}" points at ${path}, which is not in the tarball`)
+    const present = path.includes('*')
+      ? [...shipped].some(file => file.startsWith(path.split('*')[0]) && file.endsWith(path.split('*')[1]))
+      : shipped.has(path)
+    if (!present) failures.push(`export "${subpath}" points at ${path}, which is not in the tarball`)
   }
 }
 
 if (!shipped.has('LICENSE')) failures.push('LICENSE is not in the tarball')
+
+// Metadata is resolved from the complete plugin specifier, including /fetch.
+for (const prefix of ['', '/fetch']) {
+  for (const language of ['en', 'zh']) {
+    const target = manifest.exports['.' + prefix + '/locale/*.json'].replace('*', language).replace(/^\.\//, '')
+    if (!shipped.has(target)) failures.push(`missing ${prefix || '/'} locale ${language}`)
+    const locale = JSON.parse(readFileSync(join(root, target), 'utf8'))
+    if (!locale.meta?.title || !locale.meta?.description) failures.push(`incomplete metadata ${target}`)
+  }
+  const icon = manifest.exports['.' + prefix + '/icon'].replace(/^\.\//, '')
+  if (!shipped.has(icon)) failures.push(`missing ${prefix || '/'} icon`)
+}
 
 // Sources and tests are build inputs, not runtime artifacts.
 for (const path of shipped) {
