@@ -17,3 +17,11 @@ pnpm check
 ```
 
 `pnpm check` = typecheck + test + build + `check:package`。**测试只用 mock API 响应，不打真实 Firecrawl 请求**；针对用户授权 key 的实网集成检查单独安排，走 `pnpm test:e2e` 的独立配置。
+
+## 分支与发布
+
+- 长期发布分支为 `main`，位于 TTTPOB remote `fork`（github.com/TTTPOB/dsh-firecrawl）；本地长期分支必须跟踪 `fork/main`，不跟踪第三方上游。
+- 开发和测试使用独立分支或 worktree。
+- 发布前先合并到长期分支并 push，等待分支 CI（`.github/workflows/ci.yml`）通过。
+- 仅从长期分支上的提交，通过 GitHub Actions Release workflow（`.github/workflows/release.yml`）发布；tag 和 Release 资产不可变，不上传本地构建。
+- 本机约 13 GB 内存，本地只跑本仓库相关的 scoped 检查；重型全仓检查交给 CI。
