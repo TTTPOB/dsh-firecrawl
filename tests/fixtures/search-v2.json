@@ -1,0 +1,12 @@
+{
+  "success": true,
+  "data": {
+    "web": [
+      {
+        "url": "https://example.test/wiki/Example",
+        "title": "Example encyclopedia",
+        "description": "A public encyclopedia result."
+      }
+    ]
+  }
+}

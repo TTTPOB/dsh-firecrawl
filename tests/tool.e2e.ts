@@ -12,7 +12,8 @@
 import { Context } from '@deepseek-ai/cordis'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPromptRuntime from '@deepseek-ai/dsh-system-prompt'
-import ToolRuntime from '@deepseek-ai/dsh-tools'
+import ToolRuntime, { type ToolActivationContext } from '@deepseek-ai/dsh-tools'
+import * as NativeExecutor from '@deepseek-ai/dsh-tool-executor-native'
 import * as toolWeb from '@deepseek-ai/dsh-tool-web'
 import WebRuntime from '@deepseek-ai/dsh-web'
 import { describe, expect, it } from 'vitest'
@@ -30,21 +31,32 @@ async function harness(): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(ToolRuntime, {})
   await ctx.plugin(SystemPromptRuntime)
+  await ctx.plugin(NativeExecutor)
   await ctx.plugin(WebRuntime, { searchProvider: 'firecrawl', fetchProvider: 'firecrawl' })
-  await ctx.plugin(searchPlugin, { apiKey })
-  await ctx.plugin(fetchPlugin, { apiKey })
+  await ctx.plugin(searchPlugin, { apiKey, ...(process.env.FIRECRAWL_BASE_URL ? { baseURL: process.env.FIRECRAWL_BASE_URL } : {}) })
+  await ctx.plugin(fetchPlugin, { apiKey, onlyMainContent: false, ...(process.env.FIRECRAWL_BASE_URL ? { baseURL: process.env.FIRECRAWL_BASE_URL } : {}) })
   await ctx.plugin(toolWeb, { search: true, fetch: true, searchTimeoutMs: 60_000, fetchTimeoutMs: 60_000 })
   return ctx
 }
 
 let call = 0
-function invoke(ctx: Context, name: string, args: unknown) {
-  return ctx.tools.execute({
-    callId: ToolCallId(`live-${call += 1}`),
-    name,
-    arguments: args,
-    signal: new AbortController().signal,
-  })
+async function invoke(ctx: Context, name: string, args: unknown) {
+  const id = ToolCallId(`live-${call += 1}`)
+  const signal = new AbortController().signal
+  // These calls use only agent scope identity, not a model loop or Session log.
+  const agent = {} as ToolActivationContext['agent']
+  const toolSet = await ctx.tools.resolve({ agent, modelSelection: { provider: 'live', model: 'live' }, signal })
+  try {
+    const batch = await ctx.tools.execute({
+      calls: [{ type: 'tool-call', id, name, arguments: JSON.stringify(args) }],
+      agent, toolSet, signal,
+    })
+    expect(batch.results).toHaveLength(1)
+    expect(batch.results[0]!.callId).toBe(id)
+    return batch.results[0]!.result
+  } finally {
+    toolSet.dispose()
+  }
 }
 
 /** Flatten a tool result's content blocks to the text the model would read. */
@@ -66,22 +78,23 @@ describe('model-facing tool surface', () => {
 
   it('answers a live web_search call with rendered sources', async () => {
     const ctx = await harness()
-    const result = await invoke(ctx, 'web_search', { query: 'Firecrawl web scraping API' })
+    const result = await invoke(ctx, 'web_search', { queries: ['wikipedia'] })
 
-    expect(result.isError).toBe(false)
+    expect(result.isError, text(result.content)).toBe(false)
     const rendered = text(result.content)
     expect(rendered.length).toBeGreaterThan(0)
     expect(rendered).toMatch(/https?:\/\//)
-    report('web_search', { chars: rendered.length, preview: rendered.slice(0, 80).replace(/\s+/g, ' ') })
+    report('web_search', { chars: rendered.length, preview: rendered.slice(0, 200).replace(/\s+/g, ' ') })
   }, 90_000)
 
   it('answers a live web_fetch call with page text', async () => {
     const ctx = await harness()
     const result = await invoke(ctx, 'web_fetch', { url: 'https://example.com' })
 
-    expect(result.isError).toBe(false)
-    expect(text(result.content)).toContain('Example Domain')
-    report('web_fetch', { chars: text(result.content).length })
+    expect(result.isError, text(result.content)).toBe(false)
+    expect(text(result.content)).toContain('HTTP 200')
+    expect(result.value).toMatchObject({ statusCode: 200, body: { content: expect.stringMatching(/\S/) } })
+    report('web_fetch', { chars: text(result.content).length, preview: text(result.content).slice(0, 200) })
   }, 90_000)
 
   it('reports a bad fetch target as a structured tool error, not a crash', async () => {

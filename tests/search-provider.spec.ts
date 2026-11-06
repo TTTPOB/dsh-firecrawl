@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   FirecrawlSearchProvider,
@@ -33,6 +34,17 @@ function searchResponse(body: unknown): Response {
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
+})
+
+describe('live v2 response structure', () => {
+  it('preserves web sources from the transport envelope', async () => {
+    const payload = JSON.parse(readFileSync(new URL('./fixtures/search-v2.json', import.meta.url), 'utf8'))
+    vi.stubGlobal('fetch', vi.fn(async () => searchResponse(payload)))
+    const result = await new FirecrawlSearchProvider(options()).search({ query: 'encyclopedia' })
+    expect(result.sources).toEqual(payload.data.web.map((source: { url: string, title: string, description: string }) => ({
+      url: source.url, title: source.title, snippet: source.description,
+    })))
+  })
 })
 
 describe('availability', () => {
